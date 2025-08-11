@@ -1,0 +1,32 @@
+/* src/styles/DayPickerStyles.css */
+.rdp {
+  --rdp-accent-color: #e50914;
+  --rdp-background-color: #111;
+  --rdp-text-color: #fff;
+  --rdp-outline: 2px solid #e50914;
+
+  font-family: 'Rajdhani', sans-serif;
+}
+
+.rdp-day {
+  color: white;
+}
+
+.rdp-day:hover {
+  background-color: #e50914;
+  color: white;
+}
+
+.rdp-day_selected {
+  background-color: #b20710 !important;
+  color: white !important;
+}
+
+.rdp-day_disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.rdp-nav_button {
+  color: #e50914 !important;
+}
