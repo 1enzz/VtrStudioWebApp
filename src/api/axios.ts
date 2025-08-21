@@ -1,11 +1,11 @@
 import axios from 'axios';
 
 export const api = axios.create({
-  baseURL: 'http://localhost:5270/api',
+  baseURL: 'https://vtrstudioapi.onrender.com/api',
 });
 
 export const apiAdmin = axios.create({
-  baseURL: 'http://localhost:5270/admin',
+  baseURL: 'https://vtrstudioapi.onrender.com/admin',
 });
 
 
