@@ -58,8 +58,8 @@ export const AdminBookingList = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiAdmin.get('/bookings');
-      setBookings(response.data);
+      const response = await apiAdmin.get('/bookings'); // GET /admin/bookings
+      setBookings(response.data ?? []);
     } catch (err) {
       setError('Erro ao carregar agendamentos');
     } finally {
@@ -106,25 +106,36 @@ export const AdminBookingList = () => {
       <Title>Agendamentos do Mês</Title>
 
       {error && <Alert type="error" message={error} />}
+
       {loading ? (
         <Loader />
+      ) : bookings.length === 0 ? (
+        <p style={{ opacity: 0.7 }}>Sem agendamentos neste mês.</p>
       ) : (
-        bookings.map((booking) => (
-          <BookingCard key={booking.id}>
-            <Info><strong>Nome:</strong> {booking.name}</Info>
-            <Info><strong>Telefone:</strong> {booking.phone}</Info>
-            <Info><strong>Data:</strong> {new Date(booking.date).toLocaleDateString('pt-BR')}</Info>
-            <Info><strong>Serviço:</strong> {booking.serviceType}</Info>
-            <Info><strong>Veículo:</strong> {booking.vehicleModel}</Info>
-            <Info><strong>Status:</strong> {booking.status}</Info>
+        bookings.map((booking) => {
+          const d = new Date(booking.date);
+          const hasTime = d.getHours() + d.getMinutes() > 0;
+          const dateStr = hasTime
+            ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+            : d.toLocaleDateString('pt-BR');
 
-            <ButtonGroup>
-              <ActionButton color="#0f0" onClick={() => confirmBooking(booking.id)}>Confirmar</ActionButton>
-              <ActionButton color="#c00" onClick={() => cancelBooking(booking.id)}>Cancelar</ActionButton>
-              <ActionButton color="#444" onClick={() => deleteBooking(booking.id)}>Excluir</ActionButton>
-            </ButtonGroup>
-          </BookingCard>
-        ))
+          return (
+            <BookingCard key={booking.id}>
+              <Info><strong>Nome:</strong> {booking.name}</Info>
+              <Info><strong>Telefone:</strong> {booking.phone}</Info>
+              <Info><strong>Data:</strong> {dateStr}</Info>
+              <Info><strong>Serviço:</strong> {booking.serviceType}</Info>
+              <Info><strong>Veículo:</strong> {booking.vehicleModel ?? (booking as any)?.vehicle?.model ?? '-'}</Info>
+              <Info><strong>Status:</strong> {booking.status}</Info>
+
+              <ButtonGroup>
+                <ActionButton color="#0f0" onClick={() => confirmBooking(booking.id)}>Confirmar</ActionButton>
+                <ActionButton color="#c00" onClick={() => cancelBooking(booking.id)}>Cancelar</ActionButton>
+                <ActionButton color="#444" onClick={() => deleteBooking(booking.id)}>Excluir</ActionButton>
+              </ButtonGroup>
+            </BookingCard>
+          );
+        })
       )}
     </Container>
   );
