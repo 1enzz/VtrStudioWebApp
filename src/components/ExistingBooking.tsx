@@ -1,101 +1,160 @@
 import styled from 'styled-components';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import type { BookingDTO } from '../types/BookingDTO';
 
 type Props = {
   booking: BookingDTO;
-  onConfirmExisting: () => void;
-  onCancelExisting: () => void;
-  onEditExisting: () => void;
+  onConfirmExisting?: () => void | Promise<void>;
+  onCancelExisting?: () => void | Promise<void>;
+  onEditExisting?: () => void;
+  onReserveNew?: () => void;
+  loading?: boolean;
 };
 
-export function ExistingBooking({ booking, onConfirmExisting, onCancelExisting, onEditExisting }: Props) {
-    var status;
-    if(booking.status == "pending"){
-        status = "Pendente"
-    }else if(booking.status == "confirmed"){
-        status = "Confirmado"
-    }else{
-        status = "Cancelado"
-    }
+export function ExistingBooking({
+  booking,
+  onConfirmExisting,
+  onCancelExisting,
+  onEditExisting,
+  onReserveNew,
+  loading = false,
+}: Props) {
+  const date = booking?.date ? new Date(booking.date) : null;
+  const isConfirmed = (booking?.status || '').toLowerCase() === 'confirmed';
+
   return (
+    <Card>
+      <Title>Você já possui um agendamento</Title>
 
-    <Container>
-      <Title>Você já possui um agendamento!</Title>
-      <Info><strong>Nome:</strong> {booking.name}</Info>
-      <Info><strong>Telefone:</strong> {booking.phone}</Info>
-      <Info><strong>Serviço:</strong> {booking.serviceType}</Info>
-      <Info><strong>Data:</strong> {new Date(booking.date).toLocaleDateString('pt-BR')}</Info>
-      <Info><strong>Veículo:</strong> {booking.vehicleModel}</Info>
-      <Info><strong>Status:</strong> {status}</Info>
+      <Grid>
+        <Field>
+          <Label>Nome</Label>
+          <Value>{booking?.name || '-'}</Value>
+        </Field>
+        <Field>
+          <Label>Telefone</Label>
+          <Value>{booking?.phone || '-'}</Value>
+        </Field>
+        <Field>
+          <Label>Serviço</Label>
+          <Value>{booking?.serviceType || '-'}</Value>
+        </Field>
+        <Field>
+          <Label>Veículo</Label>
+          <Value>{booking?.vehicleModel || '-'}</Value>
+        </Field>
+        <Field>
+          <Label>Status</Label>
+          <Status $ok={isConfirmed}>{booking?.status || '-'}</Status>
+        </Field>
+        <Field>
+          <Label>Data{date && ` / Horário`}</Label>
+          <Value>
+            {date
+              ? format(date, 'dd/MM/yyyy' + (date.getHours() ? " 'às' HH:mm" : ''), { locale: ptBR })
+              : '-'}
+          </Value>
+        </Field>
+      </Grid>
 
-      <ButtonGroup>
-        <ConfirmButton onClick={onConfirmExisting}>Confirmar Este Agendamento</ConfirmButton>
-        {/* <EditButton onClick={onEditExisting}>Alterar Este Agendamento</EditButton> */}
-        <CancelButton onClick={onCancelExisting}>Cancelar Este Agendamento</CancelButton>
-      </ButtonGroup>
-    </Container>
+      <Actions>
+        {!isConfirmed && onConfirmExisting && (
+          <Button onClick={onConfirmExisting} disabled={loading}>
+            Confirmar
+          </Button>
+        )}
+
+        {onCancelExisting && (
+          <Button onClick={onCancelExisting} disabled={loading}>
+            Cancelar agendamento
+          </Button>
+        )}
+
+        {onReserveNew && (
+          <ButtonPrimary onClick={onReserveNew} disabled={loading}>
+            Reservar outro serviço
+          </ButtonPrimary>
+        )}
+
+        {onEditExisting && (
+          <ButtonGhost onClick={onEditExisting} disabled={loading}>
+            Editar
+          </ButtonGhost>
+        )}
+      </Actions>
+    </Card>
   );
 }
 
-const Container = styled.div`
-  padding: 2rem;
+const Card = styled.div`
   background: #111;
+  color: #fff;
   border-radius: 16px;
-  box-shadow: 0 0 10px #000;
-  color: white;
-  font-family: 'Rajdhani', sans-serif;
+  padding: 1.25rem;
+  box-shadow: 0 0 16px rgba(255,255,255,0.06);
 `;
 
-const Title = styled.h2`
-  color: red;
-  margin-bottom: 1.5rem;
+const Title = styled.h3`
+  margin: 0 0 1rem 0;
+  color: #e50914;
 `;
 
-const Info = styled.p`
-  font-size: 1.1rem;
-  margin: 0.4rem 0;
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: .75rem 1rem;
+
+  @media (max-width: 520px){
+    grid-template-columns: 1fr;
+  }
 `;
 
-const ButtonGroup = styled.div`
-  margin-top: 2rem;
+const Field = styled.div``;
+
+const Label = styled.div`
+  font-size: .85rem;
+  opacity: .7;
+`;
+
+const Value = styled.div`
+  font-weight: 600;
+`;
+
+const Status = styled.div<{ $ok: boolean }>`
+  font-weight: 700;
+  color: ${({ $ok }) => ($ok ? '#3ddc84' : '#ffd25f')};
+`;
+
+const Actions = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: 1rem;
 `;
 
-const BaseButton = styled.button`
-  padding: 0.9rem;
-  border-radius: 12px;
+const ButtonBase = styled.button`
   border: none;
-  font-weight: bold;
-  font-family: 'Rajdhani', sans-serif;
+  border-radius: 10px;
+  padding: .65rem 1rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: .2s;
+  color: #fff;
 `;
 
-const ConfirmButton = styled(BaseButton)`
-  background: #0f0;
-  color: #000;
-
-  &:hover {
-    background: #0c0;
-  }
+const Button = styled(ButtonBase)`
+  background: #333;
+  &:hover { background: #444; }
 `;
 
-const EditButton = styled(BaseButton)`
-  background: #222;
-  color: white;
-
-  &:hover {
-    background: #444;
-  }
+const ButtonPrimary = styled(ButtonBase)`
+  background: #e50914;
+  &:hover { background: #ff0f1c; }
 `;
 
-const CancelButton = styled(BaseButton)`
-  background: red;
-  color: white;
-
-  &:hover {
-    background: #c00000;
-  }
+const ButtonGhost = styled(ButtonBase)`
+  background: transparent;
+  outline: 1px solid #333;
+  &:hover { background: #181818; }
 `;

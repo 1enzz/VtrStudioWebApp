@@ -7,6 +7,10 @@ import { Input as BaseInput } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ServiceRulesService, type ServiceRule } from '../../services/ServiceRules';
 
+const CATEGORIES = ['Pequeno', 'Médio', 'Grande', 'Pick Up Pequena', 'Pick Up Grande'] as const;
+type Category = typeof CATEGORIES[number];
+type MaxEditor = Record<Category, number | ''>;
+
 const Container = styled.div`
   padding: 2rem;
   font-family: 'Rajdhani', sans-serif;
@@ -39,12 +43,12 @@ const Row = styled.div`
 
 const Input = styled(BaseInput)`
   margin: 0;
-  min-width: 0; /* evita overflow dentro do grid */
+  min-width: 0;
 `;
 
 const SmallInput = styled.input`
   width: 100%;
-  min-width: 0; /* evita overflow */
+  min-width: 0;
   padding: .6rem .75rem;
   border: none;
   border-radius: 6px;
@@ -71,34 +75,6 @@ const SecondaryButton = styled.button`
   &:hover { background-color: #e50914; }
 `;
 
-const Table = styled.div`
-  display: grid;
-  grid-template-columns: 2fr 1.2fr 1.2fr 1.2fr 1.2fr 1fr;
-  gap: .5rem;
-  align-items: center;
-
-  > div { padding: .6rem .75rem; background-color: #111; border-radius: 8px; }
-  .head { background: transparent; font-weight: 700; color: ${(p) => p.theme.colors.primary}; }
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 1fr;
-  }
-  @media (max-width: 760px) {
-    display: block; /* vira cards empilhados no mobile */
-  }
-`;
-
-const RowCard = styled.div`
-  display: contents;
-  @media (max-width: 760px) {
-    display: block;
-    background: #111;
-    border-radius: 12px;
-    padding: .75rem;
-    margin-bottom: .6rem;
-  }
-`;
-
 const Actions = styled.div`
   display: flex;
   gap: .5rem;
@@ -115,7 +91,31 @@ const Actions = styled.div`
   button:hover { background-color: #e50914; }
 `;
 
-/* --- NOVOS: grid responsivo p/ Criar Serviço --- */
+const TableGrid = styled.div<{ cols: number }>`
+  display: grid;
+  grid-template-columns: 2fr repeat(${(p) => p.cols}, 1.2fr) 1.2fr 1fr;
+  gap: .5rem;
+  align-items: center;
+
+  > div { padding: .6rem .75rem; background-color: #111; border-radius: 8px; }
+  .head { background: transparent; font-weight: 700; color: ${(p) => p.theme.colors.primary}; }
+
+  @media (max-width: 760px) {
+    display: block;
+  }
+`;
+
+const RowCard = styled.div`
+  display: contents;
+  @media (max-width: 760px) {
+    display: block;
+    background: #111;
+    border-radius: 12px;
+    padding: .75rem;
+    margin-bottom: .6rem;
+  }
+`;
+
 const CreateGrid = styled.div`
   display: grid;
   gap: .75rem;
@@ -124,7 +124,7 @@ const CreateGrid = styled.div`
 `;
 
 const CreateActions = styled.div`
-  grid-column: 1 / -1; /* ocupa a linha toda */
+  grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
   align-items: end;
@@ -135,7 +135,19 @@ const CreateActions = styled.div`
   }
 `;
 
-type MaxEditor = { Pequeno: number | ''; Médio: number | ''; Grande: number | '' };
+const emptyMax = (): MaxEditor =>
+  CATEGORIES.reduce((acc, k) => ({ ...acc, [k]: '' as const }), {} as MaxEditor);
+
+const normalizeMax = (max?: Record<string, number | null | undefined>): Record<string, number> => {
+  const base: Record<string, number> = {};
+  CATEGORIES.forEach((k) => { base[k] = Number(max?.[k] ?? 0); });
+  if (max) {
+    for (const [k, v] of Object.entries(max)) {
+      if (!(k in base)) base[k] = Number(v ?? 0);
+    }
+  }
+  return base;
+};
 
 export const AdminServiceManager = () => {
   const [items, setItems] = useState<ServiceRule[]>([]);
@@ -144,12 +156,10 @@ export const AdminServiceManager = () => {
   const [ok, setOk] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Create form
   const [cServiceType, setCServiceType] = useState('');
   const [cDuration, setCDuration] = useState('');
-  const [cMax, setCMax] = useState<MaxEditor>({ Pequeno: '', Médio: '', Grande: '' });
+  const [cMax, setCMax] = useState<MaxEditor>(emptyMax());
 
-  // Edit map (id -> edited values)
   const [editMap, setEditMap] = useState<Record<string, {
     serviceType: string; duration: string; max: MaxEditor;
   }>>({});
@@ -191,18 +201,16 @@ export const AdminServiceManager = () => {
     const payload: ServiceRule = {
       serviceType: cServiceType.trim(),
       duration: cDuration.trim(),
-      maxPerDay: {
-        Pequeno: Number(cMax.Pequeno || 0),
-        Médio: Number(cMax.Médio || 0),
-        Grande: Number(cMax.Grande || 0),
-      },
+      maxPerDay: normalizeMax(Object.fromEntries(
+        CATEGORIES.map((k) => [k, cMax[k] === '' ? 0 : Number(cMax[k])])
+      )),
     };
     try {
       setLoading(true);
       const created = await ServiceRulesService.create(payload);
       setOk(`Serviço "${created.serviceType}" criado.`);
       setCServiceType(''); setCDuration('');
-      setCMax({ Pequeno: '', Médio: '', Grande: '' });
+      setCMax(emptyMax());
       fetchData();
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Erro ao criar serviço.');
@@ -212,16 +220,18 @@ export const AdminServiceManager = () => {
   };
 
   const startEdit = (s: ServiceRule) => {
+    const maxNorm = normalizeMax(s.maxPerDay);
+    const max: MaxEditor = CATEGORIES.reduce((acc, k) => {
+      acc[k] = maxNorm[k] ?? 0;
+      return acc;
+    }, {} as MaxEditor);
+
     setEditMap(prev => ({
       ...prev,
       [s.id!]: {
         serviceType: s.serviceType,
         duration: s.duration,
-        max: {
-          Pequeno: s.maxPerDay?.Pequeno ?? 0,
-          Médio:   s.maxPerDay?.Médio ?? 0,
-          Grande:  s.maxPerDay?.Grande ?? 0,
-        }
+        max
       }
     }));
   };
@@ -240,11 +250,9 @@ export const AdminServiceManager = () => {
     const payload: ServiceRule = {
       serviceType: edited.serviceType.trim(),
       duration: edited.duration.trim(),
-      maxPerDay: {
-        Pequeno: Number(edited.max.Pequeno || 0),
-        Médio:   Number(edited.max.Médio || 0),
-        Grande:  Number(edited.max.Grande || 0),
-      }
+      maxPerDay: normalizeMax(Object.fromEntries(
+        CATEGORIES.map((k) => [k, edited.max[k] === '' ? 0 : Number(edited.max[k])])
+      ))
     };
 
     try {
@@ -282,7 +290,6 @@ export const AdminServiceManager = () => {
       {ok && <Alert type="success" message={ok} />}
       {loading && <Loader />}
 
-      {/* Criar (RESPONSIVO) */}
       <Card>
         <h3 style={{ marginTop: 0, color: '#e50914' }}>Criar Serviço</h3>
 
@@ -299,32 +306,17 @@ export const AdminServiceManager = () => {
             onChange={(e) => setCDuration(e.target.value)}
           />
 
-          <SmallInput
-            placeholder="Pequeno (nº por dia)"
-            value={cMax.Pequeno}
-            onChange={(e) =>
-              setCMax({ ...cMax, Pequeno: e.target.value === '' ? '' : Number(e.target.value) })
-            }
-            inputMode="numeric"
-          />
-
-          <SmallInput
-            placeholder="Médio (nº por dia)"
-            value={cMax.Médio}
-            onChange={(e) =>
-              setCMax({ ...cMax, Médio: e.target.value === '' ? '' : Number(e.target.value) })
-            }
-            inputMode="numeric"
-          />
-
-          <SmallInput
-            placeholder="Grande (nº por dia)"
-            value={cMax.Grande}
-            onChange={(e) =>
-              setCMax({ ...cMax, Grande: e.target.value === '' ? '' : Number(e.target.value) })
-            }
-            inputMode="numeric"
-          />
+          {CATEGORIES.map((cat) => (
+            <SmallInput
+              key={cat}
+              placeholder={`${cat} (nº por dia)`}
+              value={cMax[cat]}
+              onChange={(e) =>
+                setCMax({ ...cMax, [cat]: e.target.value === '' ? '' : Number(e.target.value) })
+              }
+              inputMode="numeric"
+            />
+          ))}
 
           <CreateActions>
             <PrimaryButton onClick={onCreate}>Criar</PrimaryButton>
@@ -332,7 +324,6 @@ export const AdminServiceManager = () => {
         </CreateGrid>
       </Card>
 
-      {/* Filtro */}
       <Card>
         <Row style={{ gridTemplateColumns: '2fr 1fr' }}>
           <Input label="Filtrar por nome/duração" value={filter} onChange={(e) => setFilter(e.target.value)} />
@@ -343,27 +334,28 @@ export const AdminServiceManager = () => {
         </Row>
       </Card>
 
-      {/* Lista */}
       <Card>
         <div className="head" style={{ marginBottom: '.5rem' }}>Lista de Serviços</div>
-        <Table>
+
+        <TableGrid cols={CATEGORIES.length}>
           <div className="head">Serviço</div>
+          {CATEGORIES.map((c) => (
+            <div className="head" key={`head-${c}`}>{c}</div>
+          ))}
           <div className="head">Duração</div>
-          <div className="head">Pequeno</div>
-          <div className="head">Médio</div>
-          <div className="head">Grande</div>
           <div className="head">Ações</div>
 
           {filtered.map((s) => {
             const isEditing = !!editMap[s.id!];
+            const maxNorm = normalizeMax(s.maxPerDay);
+
             const data = editMap[s.id!] ?? {
               serviceType: s.serviceType,
               duration: s.duration,
-              max: {
-                Pequeno: s.maxPerDay?.Pequeno ?? 0,
-                Médio:   s.maxPerDay?.Médio ?? 0,
-                Grande:  s.maxPerDay?.Grande ?? 0,
-              }
+              max: CATEGORIES.reduce((acc, k) => {
+                acc[k] = maxNorm[k] ?? 0;
+                return acc;
+              }, {} as MaxEditor)
             };
 
             return (
@@ -379,6 +371,27 @@ export const AdminServiceManager = () => {
                   ) : s.serviceType}
                 </div>
 
+                {CATEGORIES.map((cat) => (
+                  <div key={`${s.id}-${cat}`}>
+                    {isEditing ? (
+                      <SmallInput
+                        inputMode="numeric"
+                        value={data.max[cat]}
+                        onChange={(e) =>
+                          setEditMap((prev) => ({
+                            ...prev,
+                            [s.id!]: {
+                              ...data,
+                              max: { ...data.max, [cat]: e.target.value === '' ? '' : Number(e.target.value) }
+                            }
+                          }))
+                        }
+                      />
+                    ) : (maxNorm[cat] ?? 0)}
+                  </div>
+                ))}
+
+                {/* Duração */}
                 <div>
                   {isEditing ? (
                     <SmallInput
@@ -390,51 +403,7 @@ export const AdminServiceManager = () => {
                   ) : s.duration}
                 </div>
 
-                <div>
-                  {isEditing ? (
-                    <SmallInput
-                      inputMode="numeric"
-                      value={data.max.Pequeno}
-                      onChange={(e) =>
-                        setEditMap((prev) => ({
-                          ...prev,
-                          [s.id!]: { ...data, max: { ...data.max, Pequeno: e.target.value === '' ? '' : Number(e.target.value) } }
-                        }))
-                      }
-                    />
-                  ) : (s.maxPerDay?.Pequeno ?? 0)}
-                </div>
-
-                <div>
-                  {isEditing ? (
-                    <SmallInput
-                      inputMode="numeric"
-                      value={data.max.Médio}
-                      onChange={(e) =>
-                        setEditMap((prev) => ({
-                          ...prev,
-                          [s.id!]: { ...data, max: { ...data.max, Médio: e.target.value === '' ? '' : Number(e.target.value) } }
-                        }))
-                      }
-                    />
-                  ) : (s.maxPerDay?.Médio ?? 0)}
-                </div>
-
-                <div>
-                  {isEditing ? (
-                    <SmallInput
-                      inputMode="numeric"
-                      value={data.max.Grande}
-                      onChange={(e) =>
-                        setEditMap((prev) => ({
-                          ...prev,
-                          [s.id!]: { ...data, max: { ...data.max, Grande: e.target.value === '' ? '' : Number(e.target.value) } }
-                        }))
-                      }
-                    />
-                  ) : (s.maxPerDay?.Grande ?? 0)}
-                </div>
-
+                {/* Ações */}
                 <Actions>
                   {isEditing ? (
                     <>
@@ -451,7 +420,7 @@ export const AdminServiceManager = () => {
               </RowCard>
             );
           })}
-        </Table>
+        </TableGrid>
 
         {filtered.length === 0 && <p style={{ opacity: .7 }}>Nenhum serviço encontrado.</p>}
       </Card>

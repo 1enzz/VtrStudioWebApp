@@ -1,4 +1,3 @@
-// src/pages/admin/AdminDashboard.tsx
 import { useState } from 'react';
 import styled from 'styled-components';
 import { AdminBookingList } from './AdminBookingList';
